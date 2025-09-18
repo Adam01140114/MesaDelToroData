@@ -28,7 +28,7 @@
       <header class="text-center mb-12">
         <h1 class="text-4xl font-bold tracking-tight text-slate-800 dark:text-slate-200 mb-4">Water Meter Management</h1>
         <p class="text-lg text-slate-600 dark:text-slate-400">Select a community to manage water meter readings</p>
-      </header>
+    </header>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
         <!-- Mesa Del Toro Card -->
@@ -129,24 +129,24 @@
         </button>
       </div>
 
-      <!-- Chart Card -->
+    <!-- Chart Card -->
       <section id="communitySection" class="card rounded-3xl bg-white/80 dark:bg-slate-800/60 shadow-lg ring-1 ring-black/5 dark:ring-white/10 p-4 sm:p-6">
       <div class="mb-4">
         <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-1">Mesa Del Toro</h1>
         <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold">Reads by Location</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">Live updates from Firebase</p>
-          </div>
-          <div class="text-sm">
-            <label class="mr-2 align-middle">Range:</label>
-            <select id="rangeSelect"
-              class="align-middle rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-1.5 text-sm ring-1 ring-slate-200 dark:ring-slate-700 focus:outline-none">
-              <option value="all" selected>All time</option>
-              <option value="90">Last 90 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="7">Last 7 days</option>
-            </select>
+        <div>
+          <h2 class="text-lg font-semibold">Reads by Location</h2>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Live updates from Firebase</p>
+        </div>
+        <div class="text-sm">
+          <label class="mr-2 align-middle">Range:</label>
+          <select id="rangeSelect"
+            class="align-middle rounded-xl bg-white/70 dark:bg-slate-900/40 px-3 py-1.5 text-sm ring-1 ring-slate-200 dark:ring-slate-700 focus:outline-none">
+            <option value="all" selected>All time</option>
+            <option value="90">Last 90 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="7">Last 7 days</option>
+          </select>
           </div>
         </div>
       </div>
@@ -469,7 +469,7 @@
     const readsRef = collection(db, "reads");
     const locationsRef = collection(db, "locations");
 
-     // ----- UI Elements -----
+    // ----- UI Elements -----
      const communitySelection = document.getElementById("communitySelection");
      const communityDashboard = document.getElementById("communityDashboard");
      const backToCommunities = document.getElementById("backToCommunities");
@@ -600,8 +600,8 @@
 
     [addModalCtl, exportModalCtl, editLocationModalCtl, jsonPasteModalCtl, overwriteModalCtl].forEach(m => {
       if (m && m.backdrop && m.closeBtn) {
-        m.backdrop.addEventListener("click", m.hide);
-        m.closeBtn.addEventListener("click", m.hide);
+      m.backdrop.addEventListener("click", m.hide);
+      m.closeBtn.addEventListener("click", m.hide);
       }
     });
     window.addEventListener("keydown", (e) => {
@@ -676,17 +676,32 @@
       chart.data.datasets.forEach((ds, i) => {
         const btn = document.createElement("button");
         btn.className = "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ring-1 ring-slate-200 dark:ring-slate-700 bg-white/70 dark:bg-slate-900/40";
+         
+         // Get current month's reading for this location
+         const now = new Date();
+         const currentMonth = now.getMonth();
+         const currentYear = now.getFullYear();
+         
+         const currentMonthReading = allDocs.find(doc => {
+           const docDate = new Date(doc.date);
+           return doc.location === ds.label && 
+                  docDate.getMonth() === currentMonth && 
+                  docDate.getFullYear() === currentYear;
+         });
+         
+         const readingText = currentMonthReading ? `    ‎ ‎ ‎ <strong>(${currentMonthReading.value})</strong>` : '';
+         
         btn.innerHTML = `
           <span class="inline-block h-3 w-3 rounded-full" style="background:${ds.borderColor}"></span>
-          <span>${ds.label}</span>
+           <span>${ds.label}${readingText}</span>
         `;
-         btn.onclick = () => {
+        btn.onclick = () => {
            // Open add data modal with this location pre-selected
            locationSelect.value = ds.label;
            setTodayDate(); // Always set to today when opening modal
            addModalCtl.show();
            setTimeout(() => locationSelect.focus(), 0);
-         };
+        };
         legendEl.appendChild(btn);
       });
     };
@@ -724,9 +739,14 @@
      }
 
      function loadCommunityData(communityId) {
+       console.log("🔄 loadCommunityData called for community:", communityId);
+       
        // Update Firebase references for this community
        const communityReadsRef = collection(db, `communities/${communityId}/reads`);
        const communityLocationsRef = collection(db, `communities/${communityId}/locations`);
+       
+       console.log("🔍 Community reads ref:", communityReadsRef);
+       console.log("🔍 Community locations ref:", communityLocationsRef);
        
        // Update global references
        window.currentReadsRef = communityReadsRef;
@@ -735,6 +755,7 @@
        // Clear existing data
        allDocs = [];
        allLocations = [];
+       console.log("🔍 Cleared existing data, allLocations now:", allLocations);
        
        // Load new data
        loadCommunityReads(communityReadsRef);
@@ -760,10 +781,18 @@
      }
 
      function loadCommunityLocations(locationsRef) {
+       console.log("🔄 loadCommunityLocations called with ref:", locationsRef);
        const qLocations = query(locationsRef, orderBy("name", "asc"));
        onSnapshot(qLocations, (snap) => {
+         console.log("🔍 Firebase snapshot received, docs count:", snap.docs.length);
+         console.log("🔍 Snapshot docs:", snap.docs.map(d => ({ id: d.id, ...d.data() })));
          allLocations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+         console.log("🔍 Updated allLocations from Firebase:", allLocations);
          populateLocationSelects();
+         // Also refresh edit list if it's open
+         if (!modalEditLocation.classList.contains('hidden')) {
+           populateLocationEditList();
+         }
        });
      }
 
@@ -778,8 +807,8 @@
      // Back button event listener
      backToCommunities.addEventListener("click", switchToCommunitySelection);
 
-     // ----- Data state -----
-     let allDocs = [];
+    // ----- Data state -----
+    let allDocs = [];
      let allLocations = []; // array of { id, name, lot, owner, address, meterNumber, lastRead, unit }
 
     function withinRange(date, days) {
@@ -829,7 +858,7 @@
 
     rangeSelect.addEventListener("change", (e) => applyRange(e.target.value));
 
-     // ----- Firestore listeners -----
+    // ----- Firestore listeners -----
      // Note: Firebase listeners are now handled per-community in loadCommunityData()
 
     function slugify(name) {
@@ -839,29 +868,43 @@
         .slice(0, 60) || "loc";
     }
 
-    function populateLocationSelects() {
-      // For Add form
-      const customValue = "__custom__";
-      const opts = [];
-      if (allLocations.length === 0) {
-        opts.push(new Option("Add custom location…", customValue));
-      } else {
-        opts.push(new Option("Select location…", "", true, true));
-        allLocations.forEach(l => opts.push(new Option(l.name, l.name)));
-        opts.push(new Option("Add custom location…", customValue));
-      }
-      locationSelect.innerHTML = "";
-      opts.forEach(o => locationSelect.add(o));
+     function populateLocationSelects() {
+       console.log("🔄 populateLocationSelects called");
+       console.log("🔍 Current allLocations:", allLocations);
+       console.log("🔍 allLocations.length:", allLocations.length);
+       
+       // For Add form
+       const customValue = "__custom__";
+       const opts = [];
+       if (allLocations.length === 0) {
+         opts.push(new Option("Add custom location…", customValue));
+         console.log("🔍 No locations found, adding custom option only");
+       } else {
+         opts.push(new Option("Select location…", "", true, true));
+         allLocations.forEach(l => {
+           console.log("🔍 Adding location to dropdown:", l.name);
+           opts.push(new Option(l.name, l.name));
+         });
+         opts.push(new Option("Add custom location…", customValue));
+         console.log("🔍 Added all locations plus custom option");
+       }
+       
+       console.log("🔍 Options for locationSelect:", opts.map(o => `${o.value}: ${o.text}`));
+       locationSelect.innerHTML = "";
+       opts.forEach(o => locationSelect.add(o));
+       console.log("🔍 LocationSelect options after population:", Array.from(locationSelect.options).map(o => `${o.value}: ${o.text}`));
 
-      // For Export form
-      const expOpts = [new Option("All locations", "__all__", true, true)];
-      allLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
-      exportLocation.innerHTML = "";
-      expOpts.forEach(o => exportLocation.add(o));
+       // For Export form
+       const expOpts = [new Option("All locations", "__all__", true, true)];
+       allLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
+       exportLocation.innerHTML = "";
+       expOpts.forEach(o => exportLocation.add(o));
+       console.log("🔍 ExportLocation options after population:", Array.from(exportLocation.options).map(o => `${o.value}: ${o.text}`));
 
-      // Toggle custom input visibility if needed
-      toggleCustomLocation(locationSelect.value === customValue);
-    }
+       // Toggle custom input visibility if needed
+       toggleCustomLocation(locationSelect.value === customValue);
+       console.log("✅ populateLocationSelects completed");
+     }
 
     function toggleCustomLocation(show) {
       customLocationWrap.classList.toggle("hidden", !show);
@@ -922,26 +965,19 @@
       delete window.pendingFormData;
     });
 
-    // Process form submission (shared logic)
-    async function processFormSubmission(formData, isOverwrite = false) {
-      formMsg.textContent = "";
-      saveBtn.disabled = true;
+     // Process form submission (shared logic)
+     async function processFormSubmission(formData, isOverwrite = false) {
+       console.log("🔍 processFormSubmission called with formData:", formData);
+       formMsg.textContent = "";
+       saveBtn.disabled = true;
 
-      try {
-        let location = formData.location;
+       try {
+         let location = formData.location;
+         console.log("🔍 Processing location:", location);
         
-        // Handle custom location creation
-        if (location === "__custom__") {
-          const custom = (customLocationInput.value || "").trim();
-          if (!custom) throw new Error("Please enter a custom location name.");
-          location = custom;
-
-           // Persist this location (id is a slug to dedupe)
-           const id = slugify(location);
-           await setDoc(doc(window.currentLocationsRef, id), { name: location, createdAt: serverTimestamp() }, { merge: true });
-        } else if (!location) {
-          throw new Error("Please select a location.");
-        }
+         if (!location) {
+           throw new Error("Please select a location.");
+         }
 
         const value = formData.value;
         const dateStr = formData.date;
@@ -963,16 +999,29 @@
          } else {
            // Add new document
            await addDoc(window.currentReadsRef, {
-             location,
-             value,
-             date: Timestamp.fromDate(jsDate),
-             createdAt: serverTimestamp()
-           });
+          location,
+          value,
+          date: Timestamp.fromDate(jsDate),
+          createdAt: serverTimestamp()
+        });
          }
 
-        formMsg.className = "text-sm text-emerald-600";
-        formMsg.textContent = isOverwrite ? "Updated!" : "Saved!";
-        setTimeout(() => { addModalCtl.hide(); readForm.reset(); setTodayDate(); }, 350);
+         formMsg.className = "text-sm text-emerald-600";
+         formMsg.textContent = isOverwrite ? "Updated!" : "Saved!";
+         
+         // Force refresh location selects and edit list
+         console.log("🔄 Setting timeout to refresh UI...");
+         setTimeout(() => {
+           console.log("🔄 Timeout executed, refreshing UI...");
+           console.log("🔍 Current allLocations before refresh:", allLocations.map(l => l.name));
+           populateLocationSelects();
+           if (!modalEditLocation.classList.contains('hidden')) {
+             console.log("🔄 Edit location modal is open, refreshing edit list...");
+             populateLocationEditList();
+           }
+         }, 100);
+         
+         setTimeout(() => { addModalCtl.hide(); readForm.reset(); setTodayDate(); }, 350);
       } catch (err) {
         formMsg.className = "text-sm text-rose-600";
         formMsg.textContent = err.message || "Failed to save.";
@@ -983,25 +1032,66 @@
       saveBtn.disabled = false;
     }
 
-    // ----- Add form -----
-    readForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      
-      // Determine final location
-      let location = locationSelect.value;
-      if (location === "__custom__") {
-        const custom = (customLocationInput.value || "").trim();
-        if (!custom) {
-          formMsg.className = "text-sm text-rose-600";
-          formMsg.textContent = "Please enter a custom location name.";
-          return;
-        }
-        location = custom;
-      } else if (!location) {
-        formMsg.className = "text-sm text-rose-600";
-        formMsg.textContent = "Please select a location.";
-        return;
-      }
+     // ----- Add form -----
+     readForm.addEventListener("submit", async (e) => {
+       e.preventDefault();
+       console.log("🔍 Form submitted");
+       console.log("🔍 locationSelect.value:", locationSelect.value);
+       console.log("🔍 customLocationInput.value:", customLocationInput.value);
+       
+       // Determine final location and handle custom location creation
+       let location = locationSelect.value;
+       if (location === "__custom__") {
+         console.log("🔍 Custom location path taken");
+         const custom = (customLocationInput.value || "").trim();
+         console.log("🔍 Custom location trimmed:", custom);
+         if (!custom) {
+           formMsg.className = "text-sm text-rose-600";
+           formMsg.textContent = "Please enter a custom location name.";
+           return;
+         }
+         location = custom;
+         
+         // Create the custom location in Firebase
+         console.log("🔍 Creating custom location in Firebase...");
+         const id = slugify(location);
+         console.log("🔍 Generated ID for custom location:", id);
+         console.log("🔍 Current community:", currentCommunity);
+         console.log("🔍 Current locations ref:", window.currentLocationsRef);
+         
+         const newLocation = { 
+           id: id,
+           name: location, 
+           createdAt: serverTimestamp(),
+           lot: "",
+           owner: "",
+           address: "",
+           meterNumber: "",
+           lastRead: "",
+           unit: ""
+         };
+         console.log("🔍 New location object:", newLocation);
+         
+         await setDoc(doc(window.currentLocationsRef, id), newLocation, { merge: true });
+         console.log("✅ Custom location saved to Firebase");
+         
+         // Immediately add to local array for instant UI update
+         console.log("🔍 All locations before adding:", allLocations.map(l => l.name));
+         allLocations.push(newLocation);
+         allLocations.sort((a, b) => a.name.localeCompare(b.name));
+         console.log("🔍 All locations after adding:", allLocations.map(l => l.name));
+         
+         // Immediately refresh the dropdown
+         console.log("🔄 Refreshing location selects...");
+         populateLocationSelects();
+         console.log("✅ Location selects refreshed");
+       } else if (!location) {
+         formMsg.className = "text-sm text-rose-600";
+         formMsg.textContent = "Please select a location.";
+         return;
+       }
+       
+       console.log("🔍 Final location determined:", location);
 
       const value = Number(inputValue.value);
       const dateStr = inputDate.value;
@@ -1011,15 +1101,18 @@
         return;
       }
 
-      // Check for duplicate
-      const existingData = await checkForDuplicate(location, dateStr);
-      if (existingData) {
-        showOverwriteModal(location, dateStr, existingData);
-        return;
-      }
+       // Check for duplicate
+       console.log("🔍 Checking for duplicate for location:", location);
+       const existingData = await checkForDuplicate(location, dateStr);
+       if (existingData) {
+         console.log("🔍 Duplicate found, showing overwrite modal");
+         showOverwriteModal(location, dateStr, existingData);
+         return;
+       }
 
-      // No duplicate, proceed with normal submission
-      await processFormSubmission({ location, value, date: dateStr });
+       // No duplicate, proceed with normal submission
+       console.log("🔍 No duplicate, proceeding with form submission");
+       await processFormSubmission({ location, value, date: dateStr });
     });
 
     // ----- Export -----
@@ -1036,8 +1129,8 @@
         if (months === "all") {
           filtered = allDocs.filter(d => (locFilter === "__all__") ? true : (d.location === locFilter));
         } else {
-          const now = new Date();
-          const start = new Date(now);
+        const now = new Date();
+        const start = new Date(now);
           start.setDate(1);
           start.setMonth(now.getMonth() - Number(months));
           start.setHours(0,0,0,0);
@@ -1048,8 +1141,8 @@
             t.setHours(12,0,0,0);
             const inTime = t >= start && t <= now;
             const inLoc  = (locFilter === "__all__") ? true : (d.location === locFilter);
-            return inTime && inLoc;
-          });
+          return inTime && inLoc;
+        });
         }
 
         if (!filtered.length) throw new Error("No data matches the selected filters.");
