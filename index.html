@@ -176,6 +176,10 @@
           class="w-full rounded-2xl bg-red-600 px-4 py-3 text-white font-semibold shadow hover:bg-red-500 active:scale-[0.99]">
           Clear all data
         </button>
+        <button id="toggleGraphBtn"
+          class="w-full rounded-2xl bg-gray-600 px-4 py-3 text-white font-semibold shadow hover:bg-gray-500 active:scale-[0.99] hidden">
+          Hide Graph
+        </button>
       </div>
     </section>
 
@@ -484,6 +488,7 @@
      const exportBtn        = document.getElementById("exportBtn");
      const clearBtn         = document.getElementById("clearBtn");
      const editLocationBtn  = document.getElementById("editLocationBtn");
+     const toggleGraphBtn   = document.getElementById("toggleGraphBtn");
 
     const rangeSelect  = document.getElementById("rangeSelect");
     const emptyState   = document.getElementById("emptyState");
@@ -555,6 +560,50 @@
       editLocationModalCtl.show(); 
       populateLocationEditList(); 
     });
+    
+    // Toggle graph visibility
+    let graphHidden = true; // Start with graph hidden by default
+    console.log("🔍 Setting up toggle graph button...");
+    console.log("🔍 Toggle button element:", toggleGraphBtn);
+    
+    // Hide graph on page load
+    const chartCanvas = document.getElementById('readsChart');
+    const chartContainer = chartCanvas.parentElement;
+    chartContainer.style.display = 'none';
+    toggleGraphBtn.textContent = 'Show Graph';
+    toggleGraphBtn.className = 'w-full rounded-2xl bg-green-600 px-4 py-3 text-white font-semibold shadow hover:bg-green-500 active:scale-[0.99]';
+    console.log("🔍 Graph hidden by default on page load");
+    
+    toggleGraphBtn.addEventListener("click", () => {
+      console.log("🔍 Toggle graph button clicked!");
+      graphHidden = !graphHidden;
+      console.log("🔍 Graph hidden state:", graphHidden);
+      
+      const chartCanvas = document.getElementById('readsChart');
+      console.log("🔍 Chart canvas element:", chartCanvas);
+      const chartContainer = chartCanvas.parentElement; // Get the div containing the canvas
+      console.log("🔍 Chart container element:", chartContainer);
+      
+      if (graphHidden) {
+        console.log("🔍 Hiding chart...");
+        chartContainer.style.display = 'none';
+        toggleGraphBtn.textContent = 'Show Graph';
+        toggleGraphBtn.className = 'w-full rounded-2xl bg-green-600 px-4 py-3 text-white font-semibold shadow hover:bg-green-500 active:scale-[0.99]';
+        console.log("✅ Chart hidden");
+      } else {
+        console.log("🔍 Showing chart...");
+        chartContainer.style.display = 'block';
+        toggleGraphBtn.textContent = 'Hide Graph';
+        toggleGraphBtn.className = 'w-full rounded-2xl bg-gray-600 px-4 py-3 text-white font-semibold shadow hover:bg-gray-500 active:scale-[0.99]';
+        // Redraw chart when showing
+        if (window.chart) {
+          window.chart.resize();
+        }
+        console.log("✅ Chart shown");
+      }
+    });
+    
+    console.log("✅ Toggle graph button setup complete");
     
     // JSON Import button - show paste modal instead of file picker
     importJsonBtn.addEventListener("click", () => {
@@ -868,43 +917,43 @@
         .slice(0, 60) || "loc";
     }
 
-     function populateLocationSelects() {
+    function populateLocationSelects() {
        console.log("🔄 populateLocationSelects called");
        console.log("🔍 Current allLocations:", allLocations);
        console.log("🔍 allLocations.length:", allLocations.length);
        
-       // For Add form
-       const customValue = "__custom__";
-       const opts = [];
-       if (allLocations.length === 0) {
-         opts.push(new Option("Add custom location…", customValue));
+      // For Add form
+      const customValue = "__custom__";
+      const opts = [];
+      if (allLocations.length === 0) {
+        opts.push(new Option("Add custom location…", customValue));
          console.log("🔍 No locations found, adding custom option only");
-       } else {
-         opts.push(new Option("Select location…", "", true, true));
+      } else {
+        opts.push(new Option("Select location…", "", true, true));
          allLocations.forEach(l => {
            console.log("🔍 Adding location to dropdown:", l.name);
            opts.push(new Option(l.name, l.name));
          });
-         opts.push(new Option("Add custom location…", customValue));
+        opts.push(new Option("Add custom location…", customValue));
          console.log("🔍 Added all locations plus custom option");
-       }
+      }
        
        console.log("🔍 Options for locationSelect:", opts.map(o => `${o.value}: ${o.text}`));
-       locationSelect.innerHTML = "";
-       opts.forEach(o => locationSelect.add(o));
+      locationSelect.innerHTML = "";
+      opts.forEach(o => locationSelect.add(o));
        console.log("🔍 LocationSelect options after population:", Array.from(locationSelect.options).map(o => `${o.value}: ${o.text}`));
 
-       // For Export form
-       const expOpts = [new Option("All locations", "__all__", true, true)];
-       allLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
-       exportLocation.innerHTML = "";
-       expOpts.forEach(o => exportLocation.add(o));
+      // For Export form
+      const expOpts = [new Option("All locations", "__all__", true, true)];
+      allLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
+      exportLocation.innerHTML = "";
+      expOpts.forEach(o => exportLocation.add(o));
        console.log("🔍 ExportLocation options after population:", Array.from(exportLocation.options).map(o => `${o.value}: ${o.text}`));
 
-       // Toggle custom input visibility if needed
-       toggleCustomLocation(locationSelect.value === customValue);
+      // Toggle custom input visibility if needed
+      toggleCustomLocation(locationSelect.value === customValue);
        console.log("✅ populateLocationSelects completed");
-     }
+    }
 
     function toggleCustomLocation(show) {
       customLocationWrap.classList.toggle("hidden", !show);
@@ -968,16 +1017,16 @@
      // Process form submission (shared logic)
      async function processFormSubmission(formData, isOverwrite = false) {
        console.log("🔍 processFormSubmission called with formData:", formData);
-       formMsg.textContent = "";
-       saveBtn.disabled = true;
+      formMsg.textContent = "";
+      saveBtn.disabled = true;
 
-       try {
+      try {
          let location = formData.location;
          console.log("🔍 Processing location:", location);
         
          if (!location) {
-           throw new Error("Please select a location.");
-         }
+          throw new Error("Please select a location.");
+        }
 
         const value = formData.value;
         const dateStr = formData.date;
@@ -1006,7 +1055,7 @@
         });
          }
 
-         formMsg.className = "text-sm text-emerald-600";
+        formMsg.className = "text-sm text-emerald-600";
          formMsg.textContent = isOverwrite ? "Updated!" : "Saved!";
          
          // Force refresh location selects and edit list
