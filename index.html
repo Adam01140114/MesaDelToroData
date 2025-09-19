@@ -156,7 +156,7 @@
       </div>
 
       <!-- Legend -->
-      <div id="legend" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3"></div>
+      <div id="legend" class="mt-4 flex flex-col gap-2"></div>
 
       <!-- Action buttons live UNDER the graph -->
       <div class="mt-5 space-y-3">
@@ -1238,7 +1238,7 @@
       // Store the form data for later use
       window.pendingFormData = {
         location: location,
-        value: Number(inputValue.value),
+        value: Number(inputValue.value.replace(/,/g, '')),
         date: date,
         existingData: existingData
       };
@@ -1405,9 +1405,9 @@
          return;
        }
 
-       // No duplicate, proceed with normal submission
-       console.log("🔍 No duplicate, proceeding with form submission");
-       await processFormSubmission({ location, value, date: dateStr });
+      // No duplicate, proceed with normal submission
+      console.log("🔍 No duplicate, proceeding with form submission");
+      await processFormSubmission({ location, value: value, date: dateStr });
     });
 
     // ----- Export -----
