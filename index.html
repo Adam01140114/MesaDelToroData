@@ -216,6 +216,18 @@
           </div>
         </div>
 
+        <div id="previousReadingDisplay" class="hidden">
+          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-blue-700 dark:text-blue-300">Previous Reading:</span>
+              <span id="previousReadingValue" class="text-sm font-mono text-blue-900 dark:text-blue-100"></span>
+            </div>
+            <div class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              <span id="previousReadingDate"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-sm mb-1" for="date">Date</label>
@@ -225,7 +237,7 @@
 
           <div>
             <label class="block text-sm mb-1" for="value">Meter Read</label>
-            <input id="value" type="number" required step="any" min="0" placeholder="e.g., 1278.3"
+            <input id="value" type="text" required placeholder="e.g., 1,278.3"
                    class="w-full rounded-2xl border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-800 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
         </div>
@@ -721,10 +733,50 @@
 
     const legendEl = document.getElementById("legend");
     const renderLegend = () => {
+      console.log("🔍 RENDER LEGEND - Starting renderLegend function");
+      console.log("🔍 RENDER LEGEND - chart.data.datasets:", chart.data.datasets);
+      console.log("🔍 RENDER LEGEND - allLocations:", allLocations);
+      
       legendEl.innerHTML = "";
-      chart.data.datasets.forEach((ds, i) => {
+      
+      // Sort datasets by location order if available
+      const sortedDatasets = [...chart.data.datasets].sort((a, b) => {
+        console.log(`🔍 RENDER LEGEND - Comparing datasets: "${a.label}" vs "${b.label}"`);
+        
+        const locationA = allLocations.find(loc => loc.name === a.label);
+        const locationB = allLocations.find(loc => loc.name === b.label);
+        
+        console.log(`🔍 RENDER LEGEND - locationA:`, locationA);
+        console.log(`🔍 RENDER LEGEND - locationB:`, locationB);
+        
+        if (locationA && locationB) {
+          console.log(`🔍 RENDER LEGEND - a.order type: ${typeof locationA.order}, b.order type: ${typeof locationB.order}`);
+          
+          // Check if both have valid order numbers
+          if (typeof locationA.order === 'number' && typeof locationB.order === 'number') {
+            console.log(`🔍 RENDER LEGEND - Using order: ${locationA.order} vs ${locationB.order}`);
+            return locationA.order - locationB.order;
+          }
+          
+          // If only one has order, prioritize it
+          if (typeof locationA.order === 'number' && typeof locationB.order !== 'number') {
+            console.log(`🔍 RENDER LEGEND - Only A has order, prioritizing: ${a.label}`);
+            return -1;
+          }
+          if (typeof locationB.order === 'number' && typeof locationA.order !== 'number') {
+            console.log(`🔍 RENDER LEGEND - Only B has order, prioritizing: ${b.label}`);
+            return 1;
+          }
+        }
+        console.log(`🔍 RENDER LEGEND - Using alphabetical: "${a.label}" vs "${b.label}"`);
+        return a.label.localeCompare(b.label);
+      });
+      
+      console.log("🔍 RENDER LEGEND - sortedDatasets:", sortedDatasets.map(ds => ({ label: ds.label, order: allLocations.find(loc => loc.name === ds.label)?.order })));
+      
+      sortedDatasets.forEach((ds, i) => {
         const btn = document.createElement("button");
-        btn.className = "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ring-1 ring-slate-200 dark:ring-slate-700 bg-white/70 dark:bg-slate-900/40";
+        btn.className = "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ring-1 ring-slate-200 dark:ring-slate-700 bg-white/70 dark:bg-slate-900/40 transition-all duration-200";
          
          // Get current month's reading for this location
          const now = new Date();
@@ -738,19 +790,66 @@
                   docDate.getFullYear() === currentYear;
          });
          
-         const readingText = currentMonthReading ? `    ‎ ‎ ‎ <strong>(${currentMonthReading.value})</strong>` : '';
+         const readingText = currentMonthReading ? `    ‎ ‎ ‎ <strong>(${currentMonthReading.value.toLocaleString()})</strong>` : '';
          
         btn.innerHTML = `
           <span class="inline-block h-3 w-3 rounded-full" style="background:${ds.borderColor}"></span>
            <span>${ds.label}${readingText}</span>
         `;
+        
+        // Left click - Open add data modal
         btn.onclick = () => {
            // Open add data modal with this location pre-selected
            locationSelect.value = ds.label;
            setTodayDate(); // Always set to today when opening modal
+           updatePreviousReading(ds.label); // Show previous reading
            addModalCtl.show();
            setTimeout(() => locationSelect.focus(), 0);
         };
+        
+        // Right click - Copy reading value
+        btn.oncontextmenu = (e) => {
+          e.preventDefault();
+          
+          if (currentMonthReading) {
+            // Copy the reading value to clipboard
+            navigator.clipboard.writeText(currentMonthReading.value.toLocaleString()).then(() => {
+              // Visual feedback - flash green
+              btn.style.backgroundColor = '#10b981';
+              btn.style.color = 'white';
+              btn.style.transform = 'scale(1.05)';
+              
+              // Reset after animation
+              setTimeout(() => {
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+                btn.style.transform = '';
+              }, 300);
+              
+              console.log(`📋 Copied reading value: ${currentMonthReading.value} for location: ${ds.label}`);
+            }).catch(err => {
+              console.error('Failed to copy reading value:', err);
+              // Fallback visual feedback - flash red
+              btn.style.backgroundColor = '#ef4444';
+              btn.style.color = 'white';
+              setTimeout(() => {
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+              }, 300);
+            });
+          } else {
+            // No reading available - flash yellow
+            btn.style.backgroundColor = '#f59e0b';
+            btn.style.color = 'white';
+            setTimeout(() => {
+              btn.style.backgroundColor = '';
+              btn.style.color = '';
+            }, 300);
+            
+            console.log(`⚠️ No reading available for location: ${ds.label}`);
+          }
+        };
+        
         legendEl.appendChild(btn);
       });
     };
@@ -831,17 +930,50 @@
 
      function loadCommunityLocations(locationsRef) {
        console.log("🔄 loadCommunityLocations called with ref:", locationsRef);
-       const qLocations = query(locationsRef, orderBy("name", "asc"));
+       // Don't order by Firebase - we'll sort by order property in JavaScript
+       const qLocations = query(locationsRef);
        onSnapshot(qLocations, (snap) => {
          console.log("🔍 Firebase snapshot received, docs count:", snap.docs.length);
          console.log("🔍 Snapshot docs:", snap.docs.map(d => ({ id: d.id, ...d.data() })));
          allLocations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-         console.log("🔍 Updated allLocations from Firebase:", allLocations);
+         console.log("🔍 Updated allLocations from Firebase (before sorting):", allLocations);
+         
+         // Sort by order property if available
+         allLocations.sort((a, b) => {
+           console.log(`🔍 FIREBASE LOAD - Comparing: "${a.name}" (order: ${a.order}) vs "${b.name}" (order: ${b.order})`);
+           console.log(`🔍 FIREBASE LOAD - a.order type: ${typeof a.order}, b.order type: ${typeof b.order}`);
+           
+           // Check if both have valid order numbers
+           if (typeof a.order === 'number' && typeof b.order === 'number') {
+             console.log(`🔍 FIREBASE LOAD - Using order: ${a.order} vs ${b.order}`);
+             return a.order - b.order;
+           }
+           
+           // If only one has order, prioritize it
+           if (typeof a.order === 'number' && typeof b.order !== 'number') {
+             console.log(`🔍 FIREBASE LOAD - Only a has order, prioritizing: ${a.name}`);
+             return -1;
+           }
+           if (typeof b.order === 'number' && typeof a.order !== 'number') {
+             console.log(`🔍 FIREBASE LOAD - Only b has order, prioritizing: ${b.name}`);
+             return 1;
+           }
+           
+           console.log(`🔍 FIREBASE LOAD - Using alphabetical: "${a.name}" vs "${b.name}"`);
+           return a.name.localeCompare(b.name);
+         });
+         
+         console.log("🔍 FIREBASE LOAD - allLocations after sorting:", allLocations.map(loc => ({ name: loc.name, order: loc.order })));
          populateLocationSelects();
          // Also refresh edit list if it's open
          if (!modalEditLocation.classList.contains('hidden')) {
            populateLocationEditList();
          }
+         
+         // Re-render the chart with the correct ordering now that allLocations is loaded
+         console.log("🔍 FIREBASE LOAD - Re-rendering chart with correct ordering");
+         const filtered = allDocs.filter(d => withinRange(d.date, rangeSelect.value));
+         regroupAndRender(filtered);
        });
      }
 
@@ -869,6 +1001,8 @@
     }
 
     function regroupAndRender(docs) {
+      console.log("🔍 REGROUP AND RENDER - Starting function with docs:", docs.length);
+      
       const byLocation = new Map();
       docs.forEach(d => {
         const { location, date, value } = d;
@@ -876,9 +1010,42 @@
         byLocation.get(location).push({ x: date, y: value });
       });
 
+      console.log("🔍 REGROUP AND RENDER - byLocation entries:", Array.from(byLocation.keys()));
+      
+      // Sort locations by order property if available
+      const sortedLocationEntries = Array.from(byLocation.entries()).sort((a, b) => {
+        const locationA = allLocations.find(loc => loc.name === a[0]);
+        const locationB = allLocations.find(loc => loc.name === b[0]);
+        
+        console.log(`🔍 REGROUP AND RENDER - Comparing: "${a[0]}" (order: ${locationA?.order}) vs "${b[0]}" (order: ${locationB?.order})`);
+        console.log(`🔍 REGROUP AND RENDER - a.order type: ${typeof locationA?.order}, b.order type: ${typeof locationB?.order}`);
+        
+        if (locationA && locationB) {
+          // Check if both have valid order numbers
+          if (typeof locationA.order === 'number' && typeof locationB.order === 'number') {
+            console.log(`🔍 REGROUP AND RENDER - Using order: ${locationA.order} vs ${locationB.order}`);
+            return locationA.order - locationB.order;
+          }
+          
+          // If only one has order, prioritize it
+          if (typeof locationA.order === 'number' && typeof locationB.order !== 'number') {
+            console.log(`🔍 REGROUP AND RENDER - Only A has order, prioritizing: ${a[0]}`);
+            return -1;
+          }
+          if (typeof locationB.order === 'number' && typeof locationA.order !== 'number') {
+            console.log(`🔍 REGROUP AND RENDER - Only B has order, prioritizing: ${b[0]}`);
+            return 1;
+          }
+        }
+        console.log(`🔍 REGROUP AND RENDER - Using alphabetical: "${a[0]}" vs "${b[0]}"`);
+        return a[0].localeCompare(b[0]);
+      });
+      
+      console.log("🔍 REGROUP AND RENDER - sortedLocationEntries:", sortedLocationEntries.map(([name, points]) => ({ name, order: allLocations.find(loc => loc.name === name)?.order })));
+
       const datasets = [];
       let i = 0;
-      for (const [location, points] of byLocation.entries()) {
+      for (const [location, points] of sortedLocationEntries) {
         points.sort((a, b) => a.x - b.x);
         datasets.push({
           label: location,
@@ -892,6 +1059,8 @@
         });
         i++;
       }
+      
+      console.log("🔍 REGROUP AND RENDER - Final datasets:", datasets.map(ds => ({ label: ds.label, order: allLocations.find(loc => loc.name === ds.label)?.order })));
 
       chart.data.datasets = datasets;
       chart.update();
@@ -918,19 +1087,46 @@
     }
 
     function populateLocationSelects() {
-       console.log("🔄 populateLocationSelects called");
-       console.log("🔍 Current allLocations:", allLocations);
-       console.log("🔍 allLocations.length:", allLocations.length);
+       console.log("🔄 POPULATE LOCATION SELECTS - Starting function");
+       console.log("🔍 POPULATE LOCATION SELECTS - Current allLocations:", allLocations);
+       console.log("🔍 POPULATE LOCATION SELECTS - allLocations.length:", allLocations.length);
+       
+      // Sort locations by order if available
+      const sortedLocations = [...allLocations].sort((a, b) => {
+        console.log(`🔍 POPULATE LOCATION SELECTS - Comparing: "${a.name}" (order: ${a.order}) vs "${b.name}" (order: ${b.order})`);
+        console.log(`🔍 POPULATE LOCATION SELECTS - a.order type: ${typeof a.order}, b.order type: ${typeof b.order}`);
+        
+        // Check if both have valid order numbers
+        if (typeof a.order === 'number' && typeof b.order === 'number') {
+          console.log(`🔍 POPULATE LOCATION SELECTS - Using order: ${a.order} vs ${b.order}`);
+          return a.order - b.order;
+        }
+        
+        // If only one has order, prioritize it
+        if (typeof a.order === 'number' && typeof b.order !== 'number') {
+          console.log(`🔍 POPULATE LOCATION SELECTS - Only a has order, prioritizing: ${a.name}`);
+          return -1;
+        }
+        if (typeof b.order === 'number' && typeof a.order !== 'number') {
+          console.log(`🔍 POPULATE LOCATION SELECTS - Only b has order, prioritizing: ${b.name}`);
+          return 1;
+        }
+        
+        console.log(`🔍 POPULATE LOCATION SELECTS - Using alphabetical: "${a.name}" vs "${b.name}"`);
+        return a.name.localeCompare(b.name);
+      });
+      
+      console.log("🔍 POPULATE LOCATION SELECTS - sortedLocations:", sortedLocations.map(loc => ({ name: loc.name, order: loc.order })));
        
       // For Add form
       const customValue = "__custom__";
       const opts = [];
-      if (allLocations.length === 0) {
+      if (sortedLocations.length === 0) {
         opts.push(new Option("Add custom location…", customValue));
          console.log("🔍 No locations found, adding custom option only");
       } else {
         opts.push(new Option("Select location…", "", true, true));
-         allLocations.forEach(l => {
+         sortedLocations.forEach(l => {
            console.log("🔍 Adding location to dropdown:", l.name);
            opts.push(new Option(l.name, l.name));
          });
@@ -945,7 +1141,7 @@
 
       // For Export form
       const expOpts = [new Option("All locations", "__all__", true, true)];
-      allLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
+      sortedLocations.forEach(l => expOpts.push(new Option(l.name, l.name)));
       exportLocation.innerHTML = "";
       expOpts.forEach(o => exportLocation.add(o));
        console.log("🔍 ExportLocation options after population:", Array.from(exportLocation.options).map(o => `${o.value}: ${o.text}`));
@@ -963,7 +1159,57 @@
 
     locationSelect.addEventListener("change", (e) => {
       toggleCustomLocation(e.target.value === "__custom__");
+      updatePreviousReading(e.target.value);
     });
+
+    // Format meter read input with commas as user types
+    const valueInput = document.getElementById('value');
+    valueInput.addEventListener('input', (e) => {
+      let value = e.target.value.replace(/[^\d.]/g, ''); // Remove all non-digits except decimal point
+      
+      // Handle decimal point (only allow one)
+      const parts = value.split('.');
+      if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('');
+      }
+      
+      // Add commas to the integer part
+      if (parts[0]) {
+        parts[0] = parseInt(parts[0]).toLocaleString();
+        value = parts.join('.');
+      }
+      
+      e.target.value = value;
+    });
+
+    // ----- Previous Reading Display -----
+    function updatePreviousReading(locationName) {
+      const previousReadingDisplay = document.getElementById('previousReadingDisplay');
+      const previousReadingValue = document.getElementById('previousReadingValue');
+      const previousReadingDate = document.getElementById('previousReadingDate');
+      
+      if (!locationName || locationName === "__custom__" || locationName === "") {
+        previousReadingDisplay.classList.add('hidden');
+        return;
+      }
+      
+      // Find the most recent reading for this location
+      const locationReads = allDocs.filter(doc => doc.location === locationName);
+      
+      if (locationReads.length === 0) {
+        previousReadingDisplay.classList.add('hidden');
+        return;
+      }
+      
+      // Sort by date (most recent first)
+      locationReads.sort((a, b) => new Date(b.date) - new Date(a.date));
+      const mostRecent = locationReads[0];
+      
+      // Display the previous reading
+      previousReadingValue.textContent = mostRecent.value.toLocaleString();
+      previousReadingDate.textContent = `Last reading: ${new Date(mostRecent.date).toLocaleDateString()}`;
+      previousReadingDisplay.classList.remove('hidden');
+    }
 
     // ----- Duplicate Check Functions -----
     async function checkForDuplicate(location, date) {
@@ -1142,7 +1388,7 @@
        
        console.log("🔍 Final location determined:", location);
 
-      const value = Number(inputValue.value);
+      const value = Number(inputValue.value.replace(/,/g, ''));
       const dateStr = inputDate.value;
       if (!dateStr || !isFinite(value)) {
         formMsg.className = "text-sm text-rose-600";
@@ -1405,14 +1651,22 @@
           previousMonthMap.set(read.location, read.value);
         });
         
+        // Sort locations by order if available
+        const sortedLocations = [...allLocations].sort((a, b) => {
+          if (a.order !== undefined && b.order !== undefined) {
+            return a.order - b.order;
+          }
+          return a.name.localeCompare(b.name);
+        });
+        
         // Build Excel data with dynamic month column and previous month as LAST READ
-        const rows = allLocations.map((location, index) => ({
+        const rows = sortedLocations.map((location, index) => ({
           "Lot": (index + 1).toString(),
           "Owner": location.owner || "",
           "Address": location.address || location.name || "",
           "METER #": location.meterNumber || "",
-          "LAST READ": previousMonthMap.get(location.name) || "",
-          [monthName]: currentMonthMap.get(location.name) || "",
+          "LAST READ": previousMonthMap.get(location.name) ? previousMonthMap.get(location.name).toLocaleString() : "",
+          [monthName]: currentMonthMap.get(location.name) ? currentMonthMap.get(location.name).toLocaleString() : "",
           "UNITS": location.unit || ""
         }));
 
@@ -1454,14 +1708,22 @@
         });
         const readsMap = new Map(curReads.map(r => [r.location, r.value]));
 
+        // Sort locations by order if available
+        const sortedLocations = [...allLocations].sort((a, b) => {
+          if (a.order !== undefined && b.order !== undefined) {
+            return a.order - b.order;
+          }
+          return a.name.localeCompare(b.name);
+        });
+        
         // Build rows in the order of your locations list
-        const rows = allLocations.map((loc, i) => ({
+        const rows = sortedLocations.map((loc, i) => ({
           "Lot": (i + 1).toString(),
           "Owner": loc.owner || "",
           "Address": loc.address || loc.name || "",
           "METER #": loc.meterNumber || "",
-          "LAST READ": loc.lastRead || "",
-          [`${monthName}-${String(now.getDate()).padStart(2,"0")}`]: readsMap.get(loc.name) ?? "",
+          "LAST READ": loc.lastRead ? loc.lastRead.toLocaleString() : "",
+          [`${monthName}-${String(now.getDate()).padStart(2,"0")}`]: readsMap.get(loc.name) ? readsMap.get(loc.name).toLocaleString() : "",
           "UNITS": loc.unit || ""
         }));
 
@@ -1694,8 +1956,11 @@
             address: item.address || "",
             meterNumber: item.meterNumber || item.meter_number || "",
             lastRead: item.lastRead || item.last_read || "",
-            unit: item.unit || ""
+            unit: item.unit || "",
+            order: item.order || undefined
           };
+          
+          console.log("🔍 PROCESS JSON - Created location:", location);
 
           // Generate ID from name (same as existing logic)
           const id = slugify(location.name);
@@ -1710,6 +1975,7 @@
 
          // Update Firebase with imported data
          const updatePromises = processedLocations.map(location => {
+           console.log("🔍 PROCESS JSON - Saving location to Firebase:", location);
            return setDoc(doc(window.currentLocationsRef, location.id), {
              name: location.name,
              lot: location.lot,
@@ -1718,6 +1984,7 @@
              meterNumber: location.meterNumber,
              lastRead: location.lastRead,
              unit: location.unit,
+             order: location.order,
              createdAt: serverTimestamp(),
              updatedAt: serverTimestamp()
            }, { merge: true });
