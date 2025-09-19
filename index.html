@@ -732,6 +732,126 @@
     });
 
     const legendEl = document.getElementById("legend");
+    // ----- Drag and Drop for Legend -----
+    let draggedElement = null;
+    let draggedIndex = -1;
+    
+    const setupDragAndDrop = () => {
+      const legendItems = legendEl.querySelectorAll('[draggable="true"]');
+      
+      legendItems.forEach((item, index) => {
+        item.addEventListener('dragstart', (e) => {
+          draggedElement = item;
+          draggedIndex = index;
+          item.style.opacity = '0.5';
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/html', item.outerHTML);
+        });
+        
+        item.addEventListener('dragend', (e) => {
+          item.style.opacity = '1';
+          draggedElement = null;
+          draggedIndex = -1;
+        });
+        
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        });
+        
+        item.addEventListener('dragenter', (e) => {
+          e.preventDefault();
+          if (item !== draggedElement) {
+            item.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+            item.style.borderColor = 'rgb(59, 130, 246)';
+          }
+        });
+        
+        item.addEventListener('dragleave', (e) => {
+          if (item !== draggedElement) {
+            item.style.backgroundColor = '';
+            item.style.borderColor = '';
+          }
+        });
+        
+        item.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          item.style.backgroundColor = '';
+          item.style.borderColor = '';
+          
+          if (item === draggedElement) return;
+          
+          const dropIndex = Array.from(legendItems).indexOf(item);
+          if (dropIndex === -1) return;
+          
+          // Reorder the legend items
+          await reorderLegendItems(draggedIndex, dropIndex);
+        });
+      });
+    };
+    
+    const reorderLegendItems = async (fromIndex, toIndex) => {
+      console.log(`🔄 Reordering legend: from ${fromIndex} to ${toIndex}`);
+      
+      // Get the dragged location name
+      const draggedLocationName = draggedElement.dataset.locationName;
+      const draggedLocation = allLocations.find(loc => loc.name === draggedLocationName);
+      
+      if (!draggedLocation) {
+        console.error('❌ Could not find dragged location:', draggedLocationName);
+        return;
+      }
+      
+      // Find the target location
+      const legendItems = legendEl.querySelectorAll('[draggable="true"]');
+      const targetItem = legendItems[toIndex];
+      const targetLocationName = targetItem.dataset.locationName;
+      const targetLocation = allLocations.find(loc => loc.name === targetLocationName);
+      
+      if (!targetLocation) {
+        console.error('❌ Could not find target location:', targetLocationName);
+        return;
+      }
+      
+      // Get current indices
+      const draggedIndex = allLocations.indexOf(draggedLocation);
+      const targetIndex = allLocations.indexOf(targetLocation);
+      
+      console.log(`🔄 Moving ${draggedLocationName} from index ${draggedIndex} to ${targetIndex}`);
+      
+      // Remove the dragged item and insert it at the new position
+      allLocations.splice(draggedIndex, 1);
+      allLocations.splice(targetIndex, 0, draggedLocation);
+      
+      // Update the order property in allLocations
+      allLocations.forEach((loc, index) => {
+        loc.order = index;
+      });
+      
+      // Save the new order to Firebase
+      await saveLegendOrderToFirebase();
+      
+      // Re-render the legend with the new order
+      renderLegend();
+    };
+    
+    const saveLegendOrderToFirebase = async () => {
+      try {
+        console.log('💾 Saving legend order to Firebase...');
+        
+        // Update each location's order in Firebase
+        const updatePromises = allLocations.map(location => {
+          const locationRef = doc(window.currentLocationsRef, location.id);
+          return setDoc(locationRef, { order: location.order }, { merge: true });
+        });
+        
+        await Promise.all(updatePromises);
+        console.log('✅ Legend order saved to Firebase');
+      } catch (error) {
+        console.error('❌ Error saving legend order:', error);
+      }
+    };
+
     const renderLegend = () => {
       console.log("🔍 RENDER LEGEND - Starting renderLegend function");
       console.log("🔍 RENDER LEGEND - chart.data.datasets:", chart.data.datasets);
@@ -775,8 +895,10 @@
       console.log("🔍 RENDER LEGEND - sortedDatasets:", sortedDatasets.map(ds => ({ label: ds.label, order: allLocations.find(loc => loc.name === ds.label)?.order })));
       
       sortedDatasets.forEach((ds, i) => {
-        const btn = document.createElement("button");
-        btn.className = "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ring-1 ring-slate-200 dark:ring-slate-700 bg-white/70 dark:bg-slate-900/40 transition-all duration-200";
+        const btn = document.createElement("div");
+        btn.className = "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm ring-1 ring-slate-200 dark:ring-slate-700 bg-white/70 dark:bg-slate-900/40 transition-all duration-200 cursor-move select-none";
+        btn.draggable = true;
+        btn.dataset.locationName = ds.label;
          
          // Get current month's reading for this location
          const now = new Date();
@@ -793,8 +915,13 @@
          const readingText = currentMonthReading ? `    ‎ ‎ ‎ <strong>(${currentMonthReading.value.toLocaleString()})</strong>` : '';
          
         btn.innerHTML = `
+          <div class="flex items-center gap-1 text-slate-400 cursor-move">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"></path>
+            </svg>
+          </div>
           <span class="inline-block h-3 w-3 rounded-full" style="background:${ds.borderColor}"></span>
-           <span>${ds.label}${readingText}</span>
+          <span>${ds.label}${readingText}</span>
         `;
         
         // Left click - Open add data modal
@@ -852,6 +979,9 @@
         
         legendEl.appendChild(btn);
       });
+      
+      // Add drag and drop functionality
+      setupDragAndDrop();
     };
 
      // ----- Community Management -----
@@ -938,29 +1068,18 @@
          allLocations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
          console.log("🔍 Updated allLocations from Firebase (before sorting):", allLocations);
          
-         // Sort by order property if available
+         // Assign order numbers to locations that don't have them
+         allLocations.forEach((location, index) => {
+           if (typeof location.order !== 'number') {
+             location.order = index;
+             console.log(`🔍 FIREBASE LOAD - Assigned order ${index} to location: ${location.name}`);
+           }
+         });
+         
+         // Sort by order property
          allLocations.sort((a, b) => {
            console.log(`🔍 FIREBASE LOAD - Comparing: "${a.name}" (order: ${a.order}) vs "${b.name}" (order: ${b.order})`);
-           console.log(`🔍 FIREBASE LOAD - a.order type: ${typeof a.order}, b.order type: ${typeof b.order}`);
-           
-           // Check if both have valid order numbers
-           if (typeof a.order === 'number' && typeof b.order === 'number') {
-             console.log(`🔍 FIREBASE LOAD - Using order: ${a.order} vs ${b.order}`);
-             return a.order - b.order;
-           }
-           
-           // If only one has order, prioritize it
-           if (typeof a.order === 'number' && typeof b.order !== 'number') {
-             console.log(`🔍 FIREBASE LOAD - Only a has order, prioritizing: ${a.name}`);
-             return -1;
-           }
-           if (typeof b.order === 'number' && typeof a.order !== 'number') {
-             console.log(`🔍 FIREBASE LOAD - Only b has order, prioritizing: ${b.name}`);
-             return 1;
-           }
-           
-           console.log(`🔍 FIREBASE LOAD - Using alphabetical: "${a.name}" vs "${b.name}"`);
-           return a.name.localeCompare(b.name);
+           return a.order - b.order;
          });
          
          console.log("🔍 FIREBASE LOAD - allLocations after sorting:", allLocations.map(loc => ({ name: loc.name, order: loc.order })));
